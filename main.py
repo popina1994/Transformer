@@ -1,5 +1,6 @@
 import torch
 import math
+import torch.nn as nn
 import torch.nn.functional as F
 
 def self_attention(X: torch.Tensor, num_heads: int) -> torch.Tensor:
@@ -59,10 +60,8 @@ def add_and_normalize(X_in: torch.Tensor, X_out: torch.Tensor) -> torch.Tensor:
 
     return norm_add_X
 
-# TODO: positional encoding
-# TODO: encode decoder attention
 
-def encoder(X_in: torch.Tensor, num_heads: int) -> torch.Tensor:
+def multi_head_self_attention(X_in: torch.Tensor, num_heads: int) -> torch.Tensor:
     heads_out = [self_attention(X=X_in, num_heads=num_heads) for _ in range(num_heads)]
     # X_in.num_rows, hidden_dim * num_heads
     head = torch.concat(heads_out, dim=1)
@@ -77,9 +76,23 @@ def encoder(X_in: torch.Tensor, num_heads: int) -> torch.Tensor:
     # emb_size because of add + batch normalization
     multi_head_out = head @ W_0
     print(f"{multi_head_out=} {X_in=}")
+
+    return multi_head_out
+
+def encoder(X_in: torch.Tensor, num_heads: int) -> torch.Tensor:
+    # TODO: text to positional embedding + embedding
+    # TODO: encode decoder attention
+
+    multi_head_out = multi_head_self_attention(X_in, num_heads)
+    # (X_in.num_rows, emb_size)
     norm_multi_head = add_and_normalize(X_in, multi_head_out)
 
-    return norm_multi_head
+    emb_size = X_in.shape[1]
+    linear_model = nn.Linear(emb_size, emb_size).double()
+    linear_layer_out = linear_model(norm_multi_head)
+    encoder_out = add_and_normalize(multi_head_out, linear_layer_out)
+
+    return encoder_out
 
 
 if __name__ == "__main__":
@@ -89,4 +102,4 @@ if __name__ == "__main__":
     num_heads = 3
     encoder_out = encoder(X_in, num_heads=num_heads)
     print(f"Encoder out{encoder_out=}")
-    # If we concatenated multiple heads (Zs) we get multi-head attention
+
