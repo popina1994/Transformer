@@ -56,7 +56,7 @@ class SelfAttentionModel:
 
         # Q represents what teh current query is looking for.
         # K represents "label".
-        # V represents "actual information"
+        # V represents "actual information" that is passed further
         Q = X_in @ self.W_q #(X_in.rows, d_k)
 
         X_kin = X_in if encoder_output is None else encoder_output
@@ -80,7 +80,7 @@ class SelfAttentionModel:
         # d_k = d_v  = emb_size / h in multi-head
         # emb_size an embedding size
         emb_size = X_in.shape[1]
-        d_k = emb_size / self.num_heads
+        d_k = emb_size // self.num_heads
         # Normalization to flatten the scores.
         score /= math.sqrt(d_k)
         # Softmax each row and get the activation.

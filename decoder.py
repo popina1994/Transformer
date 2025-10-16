@@ -1,11 +1,9 @@
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
 from dataclasses import dataclass
 from encoder import add_and_normalize
 from encoder import MultiHeadSelfAttention
 from typing import override
-from typing import cast
 
 @dataclass
 class MultiHeadMaskedSelfAttention(MultiHeadSelfAttention):
@@ -18,7 +16,7 @@ class MultiHeadMaskedSelfAttention(MultiHeadSelfAttention):
 
 @dataclass
 class EncoderDecoderMultiHeadSelfAttention(MultiHeadSelfAttention):
-    def __init__(self, emb_size: int, d_k: int, d_v: int, num_heads: int):
+    def __init__(self, emb_size: int, num_heads: int):
         super().__init__(emb_size=emb_size, num_heads=num_heads)
 
     @override
@@ -41,7 +39,7 @@ class Decoder:
         self.num_heads = num_heads
         self.multi_head_self_attention = MultiHeadMaskedSelfAttention(emb_size=emb_size,
                                         num_heads=num_heads)
-        self.encoder_decoder_attention = EncoderDecoderMultiHeadSelfAttention(emb_size=emb_size, d_k=emb_size + 1, d_v=emb_size+2, num_heads=num_heads)
+        self.encoder_decoder_attention = EncoderDecoderMultiHeadSelfAttention(emb_size=emb_size, num_heads=num_heads)
         self.linear_model = nn.Linear(emb_size, emb_size).double()
 
 
