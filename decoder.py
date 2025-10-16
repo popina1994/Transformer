@@ -25,9 +25,9 @@ class EncoderDecoderMultiHeadSelfAttention(MultiHeadSelfAttention):
 
     @override
     def forward_pass(self, X_in: torch.Tensor,
-                     K: torch.Tensor,
-                     V: torch.Tensor) -> torch.Tensor:
-        return super().forward_pass(X_in, K,  V)
+                     list_Ks: list[torch.Tensor] | None = None,
+                     list_Vs: list[torch.Tensor] | None = None) -> torch.Tensor:
+        return super().forward_pass(X_in, list_Ks,  list_Vs)
 
 
 
@@ -50,8 +50,8 @@ class Decoder:
 
 
     def forward_pass(self, X_in: torch.Tensor,
-                    encoder_K: torch.Tensor,
-                     encoder_V: torch.Tensor):
+                    encoder_K: list[torch.Tensor],
+                     encoder_V: list[torch.Tensor]):
         #TODO: masked self attention
         # TODO: extract matK and matV from encoder for passing
         multi_head_out = self.multi_head_self_attention.forward_pass(X_in, encoder_K, encoder_V)
