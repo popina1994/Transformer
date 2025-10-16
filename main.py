@@ -2,54 +2,83 @@ import torch
 import math
 import torch.nn as nn
 import torch.nn.functional as F
+from dataclasses import dataclass
 
-def self_attention(X: torch.Tensor, num_heads: int) -> torch.Tensor:
-    print(f"{X=}")
-    # (emb_size, learning_dim)
-    W_q = torch.tensor([[1, 2, 3], [4, 5, 6], [7, 8, 9]], dtype=torch.float64)
-    # (emb_size, learning_dim)
-    W_k = torch.tensor([[4, 5, 6], [1, 2, 3], [7, 8, 9]], dtype=torch.float64)
-    # (emb_size, hidden_dim)
-    W_v = torch.tensor([[7, 8, 9], [4, 5, 6], [1, 2, 3]], dtype=torch.float64)
-    # Q represents what teh current query is looking for.
-    # K represents "label".
-    # V represents "actual information"
-    # Dimensions of X: (X.rows, emb_size)
+@dataclass
+class SelfAttentionModel:
+    W_q: torch.Tensor
+    W_k: torch.Tensor
+    W_v: torch.Tensor
+    emb_size: int
+    learning_dim: int
+    hidden_dim: int
+    num_heads: int
 
-    Q = X @ W_q #(X.rows, learning_dim)
-    K = X @ W_k # (X.rows, learning_dim)
-    V = X @ W_v #(X.rows, hidden_dim)
-    # Normalization: Q @ K / sqrt(d_k)
-    print(f"{Q=} {Q.shape=}")
-    print(f"{K=} {K.shape=}")
-    print(f"{V=} {V.shape=}")
+    @staticmethod
+    def fill_out_matrix(num_rows: int, num_cols: int, shift: int) -> torch.Tensor:
+        A = torch.tensor([[0] * num_cols] * num_rows, dtype=torch.float64)
+        for idx in range(num_rows * num_cols):
+            row_idx: int = idx // num_cols
+            col_idx: int = idx % num_cols
+            A[row_idx, col_idx] = idx + 1
 
-    # score represents to some extent some sort of correlation matrix.
-    # The higher the entry, the higher the correlation between token_i and token_j
-    # (X.rows, X.rows)
-    score = Q @ K.T
-    print(f"{score=} {score.shape=}")
+        return A
 
-    # h number of heads
-    # d_k = d_v  = emb_size / h in multi-head
-    # emb_size an embedding size
-    emb_size = X.shape[1]
-    d_k = emb_size / num_heads
-    # Normalization to flatten the scores.
-    score /= math.sqrt(d_k)
-    # Softmax each row and get the activation.
-    # row is 0th dimensions, column is 1st.
-    # reducing over the i-th dimensions, while keeping all other indices fixed.
-    soft_max_out = F.softmax(score, dim=1)
-    print(f"{soft_max_out=} {soft_max_out.shape=}")
-    # self attention
-    # (X.num_rows, hidden_dim)
-    Z = soft_max_out @ V
-    print(f"{Z=} {Z.shape=}")
-    # Self attention compresses each token and stores the interaction with other tokens
-    # in the sentence.
-    #
-    return Z
+
+    def __init__(self, emb_size: int, learning_dim: int, hidden_dim: int, num_heads: int) -> None:
+        # (emb_size, learning_dim)
+        self.W_q = self.fill_out_matrix(emb_size, learning_dim, 1)
+        # (emb_size, learning_dim)
+        self.W_k = self.fill_out_matrix(emb_size, learning_dim, 2)
+        # (emb_size, hidden_dim)
+        self.W_v = self.fill_out_matrix(emb_size, hidden_dim, 3)
+
+        self.emb_size = emb_size
+        self.learning_dim = learning_dim
+        self.hidden_dim = hidden_dim
+        self.num_heads = num_heads
+
+
+    def forward_pass(self, X_in: torch.Tensor) -> torch.Tensor:
+        # Dimensions of X_in: (X_in.rows, emb_size)
+        print(f"{X_in=}")
+
+        # Q represents what teh current query is looking for.
+        # K represents "label".
+        # V represents "actual information"
+        Q = X_in @ self.W_q #(X_in.rows, learning_dim)
+        K = X_in @ self.W_k #(X_in.rows, learning_dim)
+        V = X_in @ self.W_v #(X_in.rows, hidden_dim)
+
+        print(f"{Q=} {Q.shape=}")
+        print(f"{K=} {K.shape=}")
+        print(f"{V=} {V.shape=}")
+
+        # score represents to some extent some sort of correlation matrix.
+        # The higher the entry, the higher the correlation between token_i and token_j
+        # (X_in.rows, X_in.rows)
+        score = Q @ K.T
+        print(f"{score=} {score.shape=}")
+
+        # h number of heads
+        # d_k = d_v  = emb_size / h in multi-head
+        # emb_size an embedding size
+        emb_size = X_in.shape[1]
+        d_k = emb_size / num_heads
+        # Normalization to flatten the scores.
+        score /= math.sqrt(d_k)
+        # Softmax each row and get the activation.
+        # row is 0th dimensions, column is 1st.
+        # reducing over the i-th dimensions, while keeping all other indices fixed.
+        soft_max_out = F.softmax(score, dim=1)
+        print(f"{soft_max_out=} {soft_max_out.shape=}")
+        # self attention
+        # (X_in.num_rows, hidden_dim)
+        Z = soft_max_out @ V
+        print(f"{Z=} {Z.shape=}")
+        # Self attention compresses each token and stores the interaction with other tokens
+        # in the sentence.
+        return Z
 
 
 def add_and_normalize(X_in: torch.Tensor, X_out: torch.Tensor) -> torch.Tensor:
@@ -62,12 +91,17 @@ def add_and_normalize(X_in: torch.Tensor, X_out: torch.Tensor) -> torch.Tensor:
 
 
 def multi_head_self_attention(X_in: torch.Tensor, num_heads: int) -> torch.Tensor:
-    heads_out = [self_attention(X=X_in, num_heads=num_heads) for _ in range(num_heads)]
+    emb_size = X_in.shape[1]
+    learning_dim = X_in.shape[1] + 1
+    hidden_dim = X_in.shape[1]
+    self_attention_model = SelfAttentionModel(emb_size=emb_size, learning_dim=learning_dim,
+                                              hidden_dim=hidden_dim, num_heads=num_heads)
+    heads_out = [self_attention_model.forward_pass(X_in) for _ in range(num_heads)]
     # X_in.num_rows, hidden_dim * num_heads
     head = torch.concat(heads_out, dim=1)
     print(f"{head=}")
     # (hidden_dim, emb_size)
-    W_temp = torch.tensor([[3, 4, 7], [5, 6, 8], [7, 8, 9]], dtype=torch.float64)
+    W_temp = SelfAttentionModel.fill_out_matrix(hidden_dim, emb_size, 3)
     # (hidden_dim * num_heads, emb_size)
     W_0 = torch.concat([W_temp] * num_heads, dim=0)
     print(f"{head.shape=} {W_0.shape=}")
@@ -94,6 +128,22 @@ def encoder(X_in: torch.Tensor, num_heads: int) -> torch.Tensor:
 
     return encoder_out
 
+
+def masked_multi_head_attention(X_in: torch.Tensor, num_heads: int):
+    # TODO: masking
+    # setting entries to infinity in the attention matrices so the future tokens do not affect
+    return multi_head_self_attention(X_in, num_heads)
+
+
+def decoder(X_in: torch.Tensor, num_heads: int)-> torch.Tensor:
+    masked_multi_head_out = masked_multi_head_attention(X_in, num_heads)
+    norm_multi_head = add_and_normalize(X_in, masked_multi_head_out)
+    decoder_encoder_attention()
+    # K, V from encoder, Q from decoder (makes sense, we are querying)
+    #  -> encoder-decoder attention, add & norm
+
+# feedforward
+# add & norm
 
 if __name__ == "__main__":
     # A 2×3 matrix
