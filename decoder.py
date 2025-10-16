@@ -48,12 +48,10 @@ class Decoder:
     def forward_pass(self, X_in: torch.Tensor,
                     encoder_output: torch.Tensor):
         #TODO: masked self attention
-        # TODO: extract matK and matV from encoder for passing
         multi_head_out = self.multi_head_self_attention.forward_pass(X_in=X_in)
         # (X_in.num_rows, emb_size)
         norm_multi_head = add_and_normalize(X_in, multi_head_out)
 
-        print(f"ALL GOOD {norm_multi_head.shape}")
         # encoder decoder attention
         encoder_decoder_attention = \
             self.encoder_decoder_attention.forward_pass(norm_multi_head, encoder_output=encoder_output)

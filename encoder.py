@@ -3,7 +3,7 @@ import math
 import torch.nn as nn
 import torch.nn.functional as F
 from dataclasses import dataclass
-from typing import cast
+
 
 def add_and_normalize(X_in: torch.Tensor, X_out: torch.Tensor) -> torch.Tensor:
     embedding_dim: int = int(X_in.shape[1])
@@ -22,8 +22,6 @@ class SelfAttentionModel:
     d_k: int = 1
     d_v: int = 1
     num_heads: int = 1
-    mat_K: torch.Tensor | None = None
-    mat_V: torch.Tensor | None = None
 
     @staticmethod
     def fill_out_matrix(num_rows: int, num_cols: int, shift: int) -> torch.Tensor:
@@ -87,7 +85,7 @@ class SelfAttentionModel:
         score /= math.sqrt(d_k)
         # Softmax each row and get the activation.
         # row is 0th dimensions, column is 1st.
-        # reducing over the i-th dimensions, while keeping all other indices fixed.
+        # applying over the i-th dimensions, while keeping all other indices fixed.
         soft_max_out = F.softmax(score, dim=1)
         print(f"{soft_max_out=} {soft_max_out.shape=}")
         # self attention
@@ -164,9 +162,3 @@ class Encoder:
         encoder_out = add_and_normalize(multi_head_out, linear_layer_out)
 
         return encoder_out
-
-    def get_K(self) -> list[torch.Tensor]:
-        return self.multi_head_self_attention.mat_K
-
-    def get_V(self) -> list[torch.Tensor]:
-        return self.multi_head_self_attention.mat_V
