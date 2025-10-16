@@ -16,8 +16,8 @@ def add_and_normalize(X_in: torch.Tensor, X_out: torch.Tensor) -> torch.Tensor:
 @dataclass
 class SelfAttentionModel:
     W_q: torch.Tensor
-    W_k: torch.Tensor | None = None
-    W_v: torch.Tensor | None = None
+    W_k: torch.Tensor
+    W_v: torch.Tensor
     emb_size: int = 1
     d_k: int = 1
     d_v: int = 1
@@ -36,17 +36,14 @@ class SelfAttentionModel:
         return A
 
 
-    def __init__(self, emb_size: int, d_k: int, d_v: int, num_heads: int,
-                 pass_K_and_V: bool = False) -> None:
+    def __init__(self, emb_size: int, d_k: int, d_v: int, num_heads: int) -> None:
         # (emb_size, d_k)
         self.W_q = self.fill_out_matrix(emb_size, d_k, 1)
 
         # (emb_size, d_k)
-        if not pass_K_and_V:
-            self.W_k = self.fill_out_matrix(emb_size, d_k, 2)
+        self.W_k = self.fill_out_matrix(emb_size, d_k, 2)
         # (emb_size, d_v)
-        if not pass_K_and_V:
-            self.W_v = self.fill_out_matrix(emb_size, d_v, 3)
+        self.W_v = self.fill_out_matrix(emb_size, d_v, 3)
 
         self.emb_size = emb_size
         self.d_k = d_k
@@ -55,8 +52,7 @@ class SelfAttentionModel:
 
 
     def forward_pass(self, X_in: torch.Tensor,
-                     encoder_K: torch.Tensor | None = None,
-                     encoder_V: torch.Tensor | None = None) -> torch.Tensor:
+                     encoder_output: torch.Tensor | None = None) -> torch.Tensor:
         # Dimensions of X_in: (X_in.rows, emb_size)
         print(f"{X_in=}")
 
@@ -65,8 +61,10 @@ class SelfAttentionModel:
         # V represents "actual information"
         Q = X_in @ self.W_q #(X_in.rows, d_k)
 
-        K: torch.Tensor = X_in @ self.W_k if self.W_k is not None else encoder_K #(X_in.rows, d_k)
-        V: torch.Tensor = X_in @ self.W_v if self.W_v is not None  else encoder_V #(X_in.rows, d_v)
+        X_kin = X_in if encoder_output is None else encoder_output
+        X_vin = X_in if encoder_output is None else encoder_output
+        K: torch.Tensor = X_kin @ self.W_k  #(X_in.rows, d_k)
+        V: torch.Tensor = X_vin @ self.W_v  #(X_in.rows, d_v)
         self.mat_K = K
         self.mat_V = V
 
@@ -111,8 +109,7 @@ class MultiHeadSelfAttention:
     mat_K: list[torch.Tensor]
     mat_V: list[torch.Tensor]
 
-    def __init__(self, emb_size: int, num_heads: int,
-                 pass_K_and_V: bool = False):
+    def __init__(self, emb_size: int, num_heads: int):
         self.emb_size = emb_size
         self.d_k = emb_size // num_heads
         self.d_v = emb_size // num_heads
@@ -120,22 +117,13 @@ class MultiHeadSelfAttention:
         self.self_attention_models = [SelfAttentionModel(emb_size=emb_size,
                                                         d_k=self.d_k,
                                                         d_v=self.d_v,
-                                                        num_heads=num_heads,
-                                                        pass_K_and_V=pass_K_and_V)
+                                                        num_heads=num_heads)
                                                         for _ in range(num_heads)]
 
     def forward_pass(self, X_in: torch.Tensor,
-                     K: list[torch.Tensor] | None = None,
-                     V: list[torch.Tensor] | None = None) -> torch.Tensor:
-        if K is None:
-            heads_out = [self_attention_model.forward_pass(X_in) for self_attention_model in self.self_attention_models]
-        else:
-            heads_out = [self_attention_model.forward_pass(X_in, K[i], V[i]) for i, self_attention_model in enumerate(self.self_attention_models)]
+                     encoder_output: torch.Tensor | None = None) -> torch.Tensor:
+        heads_out = [self_attention_model.forward_pass(X_in, encoder_output) for self_attention_model in self.self_attention_models]
 
-        # Save K and V only for the encoder
-        if K is None:
-            self.mat_K = [cast(torch.Tensor, self_attention_model.mat_K) for self_attention_model in self.self_attention_models]
-            self.mat_V = [cast(torch.Tensor, self_attention_model.mat_V) for self_attention_model in self.self_attention_models]
         # X_in.num_rows, d_v * num_heads
         head = torch.concat(heads_out, dim=1)
         print(f"{head=}")

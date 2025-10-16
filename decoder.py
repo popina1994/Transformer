@@ -19,13 +19,12 @@ class MultiHeadMaskedSelfAttention(MultiHeadSelfAttention):
 @dataclass
 class EncoderDecoderMultiHeadSelfAttention(MultiHeadSelfAttention):
     def __init__(self, emb_size: int, d_k: int, d_v: int, num_heads: int):
-        super().__init__(emb_size=emb_size, num_heads=num_heads, pass_K_and_V=True)
+        super().__init__(emb_size=emb_size, num_heads=num_heads)
 
     @override
     def forward_pass(self, X_in: torch.Tensor,
-                     list_Ks: list[torch.Tensor] | None = None,
-                     list_Vs: list[torch.Tensor] | None = None) -> torch.Tensor:
-        return super().forward_pass(X_in, list_Ks,  list_Vs)
+                     encoder_output: torch.Tensor) -> torch.Tensor:
+        return super().forward_pass(X_in, encoder_output=encoder_output)
 
 
 
@@ -47,17 +46,17 @@ class Decoder:
 
 
     def forward_pass(self, X_in: torch.Tensor,
-                    encoder_K: list[torch.Tensor],
-                     encoder_V: list[torch.Tensor]):
+                    encoder_output: torch.Tensor):
         #TODO: masked self attention
         # TODO: extract matK and matV from encoder for passing
-        multi_head_out = self.multi_head_self_attention.forward_pass(X_in, encoder_K, encoder_V)
+        multi_head_out = self.multi_head_self_attention.forward_pass(X_in=X_in)
         # (X_in.num_rows, emb_size)
         norm_multi_head = add_and_normalize(X_in, multi_head_out)
 
+        print(f"ALL GOOD {norm_multi_head.shape}")
         # encoder decoder attention
         encoder_decoder_attention = \
-            self.encoder_decoder_attention.forward_pass(norm_multi_head, encoder_K, encoder_V)
+            self.encoder_decoder_attention.forward_pass(norm_multi_head, encoder_output=encoder_output)
         norm_encoder_decoder_attention = add_and_normalize(X_in, encoder_decoder_attention)
 
         # feedforward
