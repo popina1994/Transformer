@@ -19,8 +19,8 @@ class SelfAttentionModel:
     W_k: torch.Tensor | None = None
     W_v: torch.Tensor | None = None
     emb_size: int = 1
-    learning_dim: int = 1
-    hidden_dim: int = 1
+    d_k: int = 1
+    d_v: int = 1
     num_heads: int = 1
     mat_K: torch.Tensor | None = None
     mat_V: torch.Tensor | None = None
@@ -36,21 +36,21 @@ class SelfAttentionModel:
         return A
 
 
-    def __init__(self, emb_size: int, learning_dim: int, hidden_dim: int, num_heads: int,
+    def __init__(self, emb_size: int, d_k: int, d_v: int, num_heads: int,
                  pass_K_and_V: bool = False) -> None:
-        # (emb_size, learning_dim)
-        self.W_q = self.fill_out_matrix(emb_size, learning_dim, 1)
+        # (emb_size, d_k)
+        self.W_q = self.fill_out_matrix(emb_size, d_k, 1)
 
-        # (emb_size, learning_dim)
+        # (emb_size, d_k)
         if not pass_K_and_V:
-            self.W_k = self.fill_out_matrix(emb_size, learning_dim, 2)
-        # (emb_size, hidden_dim)
+            self.W_k = self.fill_out_matrix(emb_size, d_k, 2)
+        # (emb_size, d_v)
         if not pass_K_and_V:
-            self.W_v = self.fill_out_matrix(emb_size, hidden_dim, 3)
+            self.W_v = self.fill_out_matrix(emb_size, d_v, 3)
 
         self.emb_size = emb_size
-        self.learning_dim = learning_dim
-        self.hidden_dim = hidden_dim
+        self.d_k = d_k
+        self.d_v = d_v
         self.num_heads = num_heads
 
 
@@ -63,10 +63,10 @@ class SelfAttentionModel:
         # Q represents what teh current query is looking for.
         # K represents "label".
         # V represents "actual information"
-        Q = X_in @ self.W_q #(X_in.rows, learning_dim)
+        Q = X_in @ self.W_q #(X_in.rows, d_k)
 
-        K: torch.Tensor = X_in @ self.W_k if self.W_k is not None else encoder_K #(X_in.rows, learning_dim)
-        V: torch.Tensor = X_in @ self.W_v if self.W_v is not None  else encoder_V #(X_in.rows, hidden_dim)
+        K: torch.Tensor = X_in @ self.W_k if self.W_k is not None else encoder_K #(X_in.rows, d_k)
+        V: torch.Tensor = X_in @ self.W_v if self.W_v is not None  else encoder_V #(X_in.rows, d_v)
         self.mat_K = K
         self.mat_V = V
 
@@ -93,7 +93,7 @@ class SelfAttentionModel:
         soft_max_out = F.softmax(score, dim=1)
         print(f"{soft_max_out=} {soft_max_out.shape=}")
         # self attention
-        # (X_in.num_rows, hidden_dim)
+        # (X_in.num_rows, d_v)
         Z = soft_max_out @ V
         print(f"{Z=} {Z.shape=}")
         # Self attention compresses each token and stores the interaction with other tokens
@@ -103,23 +103,23 @@ class SelfAttentionModel:
 @dataclass
 class MultiHeadSelfAttention:
     emb_size: int
-    learning_dim: int
-    hidden_dim: int
+    d_k: int
+    d_v: int
     num_heads: int
     W_multi_head: torch.Tensor
     self_attention_models: list[SelfAttentionModel]
     mat_K: list[torch.Tensor]
     mat_V: list[torch.Tensor]
 
-    def __init__(self, emb_size: int, learning_dim: int, hidden_dim: int, num_heads: int,
+    def __init__(self, emb_size: int, num_heads: int,
                  pass_K_and_V: bool = False):
         self.emb_size = emb_size
-        self.learning_dim = learning_dim
-        self.hidden_dim = hidden_dim
+        self.d_k = emb_size // num_heads
+        self.d_v = emb_size // num_heads
         self.num_heads = num_heads
         self.self_attention_models = [SelfAttentionModel(emb_size=emb_size,
-                                                        learning_dim=learning_dim,
-                                                        hidden_dim=hidden_dim,
+                                                        d_k=self.d_k,
+                                                        d_v=self.d_v,
                                                         num_heads=num_heads,
                                                         pass_K_and_V=pass_K_and_V)
                                                         for _ in range(num_heads)]
@@ -136,12 +136,12 @@ class MultiHeadSelfAttention:
         if K is None:
             self.mat_K = [cast(torch.Tensor, self_attention_model.mat_K) for self_attention_model in self.self_attention_models]
             self.mat_V = [cast(torch.Tensor, self_attention_model.mat_V) for self_attention_model in self.self_attention_models]
-        # X_in.num_rows, hidden_dim * num_heads
+        # X_in.num_rows, d_v * num_heads
         head = torch.concat(heads_out, dim=1)
         print(f"{head=}")
-        # (hidden_dim, emb_size)
-        W_temp = SelfAttentionModel.fill_out_matrix(self.hidden_dim, self.emb_size, 3)
-        # (hidden_dim * num_heads, emb_size)
+        # (d_v, emb_size)
+        W_temp = SelfAttentionModel.fill_out_matrix(self.d_v, self.emb_size, 3)
+        # (d_v * num_heads, emb_size)
         self.W_multi_head = torch.concat([W_temp] * self.num_heads, dim=0)
         print(f"{head.shape=} {self.W_multi_head.shape=}")
 
@@ -163,8 +163,7 @@ class Encoder:
         self.emb_size = emb_size
         self.num_heads = num_heads
         self.multi_head_self_attention = MultiHeadSelfAttention(emb_size=emb_size,
-                                        learning_dim=emb_size + 1,
-                                        hidden_dim=emb_size + 2, num_heads=num_heads)
+                                                                num_heads=num_heads)
         self.linear_model = nn.Linear(emb_size, emb_size).double()
 
 

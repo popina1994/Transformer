@@ -9,19 +9,17 @@ from typing import cast
 
 @dataclass
 class MultiHeadMaskedSelfAttention(MultiHeadSelfAttention):
-    def __init__(self, emb_size: int, learning_dim: int, hidden_dim: int, num_heads: int,
+    def __init__(self, emb_size: int,  num_heads: int,
                  pass_K_and_V: bool = False):
         super().__init__(emb_size=emb_size,
-                         learning_dim=learning_dim,
-                         hidden_dim=hidden_dim, num_heads=num_heads)
+                          num_heads=num_heads)
 
     #TODO: add forward pass with the masking logic.
 
 @dataclass
 class EncoderDecoderMultiHeadSelfAttention(MultiHeadSelfAttention):
-    def __init__(self, emb_size: int, learning_dim: int, hidden_dim: int, num_heads: int):
-        super().__init__(emb_size=emb_size, learning_dim=learning_dim,
-                        hidden_dim=hidden_dim, num_heads=num_heads, pass_K_and_V=True)
+    def __init__(self, emb_size: int, d_k: int, d_v: int, num_heads: int):
+        super().__init__(emb_size=emb_size, num_heads=num_heads, pass_K_and_V=True)
 
     @override
     def forward_pass(self, X_in: torch.Tensor,
@@ -43,9 +41,8 @@ class Decoder:
         self.emb_size = emb_size
         self.num_heads = num_heads
         self.multi_head_self_attention = MultiHeadMaskedSelfAttention(emb_size=emb_size,
-                                        learning_dim=emb_size + 1,
-                                        hidden_dim=emb_size + 2, num_heads=num_heads)
-        self.encoder_decoder_attention = EncoderDecoderMultiHeadSelfAttention(emb_size=emb_size, learning_dim=emb_size + 1, hidden_dim=emb_size+2, num_heads=num_heads)
+                                        num_heads=num_heads)
+        self.encoder_decoder_attention = EncoderDecoderMultiHeadSelfAttention(emb_size=emb_size, d_k=emb_size + 1, d_v=emb_size+2, num_heads=num_heads)
         self.linear_model = nn.Linear(emb_size, emb_size).double()
 
 
@@ -63,7 +60,9 @@ class Decoder:
             self.encoder_decoder_attention.forward_pass(norm_multi_head, encoder_K, encoder_V)
         norm_encoder_decoder_attention = add_and_normalize(X_in, encoder_decoder_attention)
 
+        # feedforward
         linear_layer_out = self.linear_model(norm_encoder_decoder_attention)
+        # add & norm
         decoder_out = add_and_normalize(multi_head_out, linear_layer_out)
 
         return decoder_out
