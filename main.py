@@ -13,7 +13,10 @@ if __name__ == "__main__":
     # TODO: encoding of words as tensors + position
     num_heads = 2
     vocab = ["Mama", "Tata"]
+    text = "Transformers are revolutionizing AI research."
     transformer = Transformer(X_in.shape[1], num_heads=num_heads, vocab=vocab)
-    for token in transformer.forward_pass(X_in=X_in, X_out=X_out):
-        print(token)
+    token_idx = transformer.convert_tokens_to_embedding(text)
+    print(transformer.positional_encoding(10, False))
+    # for token in transformer.forward_pass(X_in=X_in, X_out=X_out):
+    #     print(token)
 

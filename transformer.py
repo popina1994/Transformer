@@ -4,6 +4,7 @@ from decoder import Decoder
 import torch
 import torch.nn.functional as F
 from typing import Generator
+from transformers import BertTokenizerFast, AutoTokenizer
 
 @dataclass
 class Transformer:
@@ -13,7 +14,9 @@ class Transformer:
 
     encoder: Encoder
     decoder: Decoder
-
+    tokenizer: BertTokenizerFast
+    embedding_layer: torch.nn.Embedding
+    model_name: str = "huawei-noah/TinyBERT_General_4L_312D"
     def __init__(self, emb_size: int, num_heads: int, vocab: list[str]):
         self.num_heads = num_heads
         self.emb_size = emb_size
@@ -21,6 +24,19 @@ class Transformer:
         self.decoder = Decoder(emb_size=emb_size, num_heads=num_heads)
         self.linear_layer = torch.nn.Linear(emb_size, len(vocab)).double()
         self.vocab = vocab
+        self.tokenizer = AutoTokenizer.from_pretrained(self.model_name)
+        self.embedding_layer = torch.nn.Embedding(
+            num_embeddings=self.tokenizer.vocab_size,
+            embedding_dim=emb_size)
+
+
+    def convert_tokens_to_embedding(self, text: str)-> torch.Tensor:
+        tokens: list[str] = self.tokenizer.tokenize(text)
+        token_ids:  list[int] = self.tokenizer.convert_tokens_to_ids(tokens)
+        token_ids_torch: torch.Tensor = torch.tensor(token_ids, dtype=torch.long)
+        token_embeddings = self.embedding_layer(token_ids_torch)  # shape: [seq_length, emb_size]
+
+        return token_embeddings
 
 
     @staticmethod
@@ -28,7 +44,7 @@ class Transformer:
     def get_angles(positions: torch.Tensor, indices: torch.Tensor, embed_size: int) -> torch.Tensor:
         exponents: torch.Tensor = (2 * (indices // 2)) / embed_size
         angle_rates: torch.Tensor = 1 / torch.pow(10000, exponents)
-        return positions * angle_rates
+        return torch.ger(positions, angle_rates)
 
 
     def positional_encoding(self, num_tokens: int, batch_computation: bool) -> torch.Tensor:
@@ -36,8 +52,8 @@ class Transformer:
         Returns (num_tokens, emb_size) tensor where
         each row represent positional encoding of the corresponding position
         """
-        positions = torch.arange(num_tokens).unsqueeze(1)
-        indices = torch.arange(self.emb_size).unsqueeze(1)
+        positions = torch.arange(num_tokens)
+        indices = torch.arange(self.emb_size)
         angle_rads = Transformer.get_angles(positions=positions,
                                             indices=indices, embed_size=self.emb_size)
 
