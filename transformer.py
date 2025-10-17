@@ -23,6 +23,35 @@ class Transformer:
         self.vocab = vocab
 
 
+    @staticmethod
+    # Code from https://www.tensorflow.org/tutorials/text/transformer
+    def get_angles(positions: torch.Tensor, indices: torch.Tensor, embed_size: int) -> torch.Tensor:
+        exponents: torch.Tensor = (2 * (indices // 2)) / embed_size
+        angle_rates: torch.Tensor = 1 / torch.pow(10000, exponents)
+        return positions * angle_rates
+
+
+    def positional_encoding(self, num_tokens: int, batch_computation: bool) -> torch.Tensor:
+        """
+        Returns (num_tokens, emb_size) tensor where
+        each row represent positional encoding of the corresponding position
+        """
+        positions = torch.arange(num_tokens).unsqueeze(1)
+        indices = torch.arange(self.emb_size).unsqueeze(1)
+        angle_rads = Transformer.get_angles(positions=positions,
+                                            indices=indices, embed_size=self.emb_size)
+
+        # apply sin to even indices in the array; 2i
+        angle_rads[:, 0::2] = torch.sin(angle_rads[:, 0::2])
+
+        # apply cos to odd indices in the array; 2i+1
+        angle_rads[:, 1::2] = torch.cos(angle_rads[:, 1::2])
+
+        pos_encoding = angle_rads.unsqueeze(0) if batch_computation else angle_rads
+
+        return pos_encoding
+
+
     def forward_pass(self, X_in: torch.Tensor, X_out: torch.Tensor)->Generator[str, None, None]:
         encoder_output = self.encoder.forward_pass(X_in=X_in)
         print(f"{encoder_output=}")
