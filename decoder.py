@@ -46,6 +46,7 @@ class Decoder:
     def forward_pass(self, X_in: torch.Tensor,
                     encoder_output: torch.Tensor):
         #TODO: masked self attention
+        print(f"X_input: {X_in=}")
         multi_head_out = self.multi_head_self_attention.forward_pass(X_in=X_in)
         # (X_in.num_rows, emb_size)
         norm_multi_head = add_and_normalize(X_in, multi_head_out)

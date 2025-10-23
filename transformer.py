@@ -18,8 +18,9 @@ class Transformer:
     positional_encodings: torch.Tensor
     encoder_output: torch.Tensor
     model_name: str = "huawei-noah/TinyBERT_General_4L_312D"
+
     def __init__(self, emb_size: int, num_heads: int, text: str):
-        torch.manual_seed(42)
+        torch.manual_seed(seed=42)
         self.num_heads = num_heads
         self.emb_size = emb_size
         self.encoder = Encoder(emb_size=emb_size, num_heads=num_heads)
@@ -33,6 +34,7 @@ class Transformer:
         self.token_embeddings = self.convert_tokens_to_embedding(text)
         self.positional_encodings = self.positional_encoding(self.token_embeddings.shape[0], False)
         self.encoder_output = self.encoder.forward_pass(X_in=self.token_embeddings)
+        print(f"{self.token_embeddings=}")
         print(f"{self.encoder_output=}")
 
 
@@ -78,7 +80,7 @@ class Transformer:
         num_tokens = X_out.shape[0]
         for i in range(num_tokens - 1):
             decoder_out = self.decoder.forward_pass(X_in=X_out[0:(i+2), :], encoder_output=self.encoder_output)
-            print(f"{decoder_out=}")
+            print(f"{decoder_out=} {X_out=}")
 
             # Get the logits for the currently encoded sequence of words + the input query.
             logits = self.decoder_out_linear_layer(decoder_out)[i+1]
