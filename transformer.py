@@ -79,8 +79,11 @@ class Transformer:
         return pos_encoding
 
 
-    def forward_pass(self, X_out: torch.Tensor)->Generator[str, None, None]:
-        num_tokens = X_out.shape[0]
+    def forward_pass(self)->Generator[str, None, None]:
+        num_tokens = self.token_embeddings.shape[0]
+        X_out = torch.tensor([[1] * self.emb_size for _ in range(num_tokens)],
+                             dtype=torch.float64)
+        print(f"{X_out.shape=} {X_out=}")
         for i in range(num_tokens - 1):
             decoder_out = self.decoder.forward_pass(X_in=X_out[0:(i+2), :],
                                                     encoder_output=self.encoder_output)
