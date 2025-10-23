@@ -81,8 +81,10 @@ class Transformer:
 
     def forward_pass(self)->Generator[str, None, None]:
         num_tokens = self.token_embeddings.shape[0]
-        X_out = torch.tensor([[1] * self.emb_size for _ in range(num_tokens)],
-                             dtype=torch.float64)
+        list_idxs: list[float] = [float(elem) for elem in torch.arange(self.emb_size)]
+        initial_tokens = [[1] * self.emb_size for _ in range(num_tokens - 1)]
+        initial_tokens = [list_idxs] + initial_tokens
+        X_out = torch.tensor(initial_tokens, dtype=torch.float64)
         print(f"{X_out.shape=} {X_out=}")
         for i in range(num_tokens - 1):
             decoder_out = self.decoder.forward_pass(X_in=X_out[0:(i+2), :],

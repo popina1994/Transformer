@@ -25,13 +25,15 @@ class SelfAttentionModel:
 
     @staticmethod
     def fill_out_matrix(num_rows: int, num_cols: int, shift: int) -> torch.Tensor:
-        A = torch.tensor([[0] * num_cols] * num_rows, dtype=torch.float64)
-        for idx in range(num_rows * num_cols):
-            row_idx: int = idx // num_cols
-            col_idx: int = idx % num_cols
-            A[row_idx, col_idx] = idx + 1
+        torch.manual_seed(shift)
+        return torch.rand(num_rows, num_cols, dtype=torch.float64)
+        # A = torch.tensor([[0] * num_cols] * num_rows, dtype=torch.float64)
+        # for idx in range(num_rows * num_cols):
+        #     row_idx: int = idx // num_cols
+        #     col_idx: int = idx % num_cols
+        #     A[row_idx, col_idx] = idx + shift
 
-        return A
+        # return A
 
 
     def __init__(self, emb_size: int, d_k: int, d_v: int, num_heads: int) -> None:
@@ -41,8 +43,7 @@ class SelfAttentionModel:
         # (emb_size, d_k)
         self.W_k = self.fill_out_matrix(emb_size, d_k, 2)
         # (emb_size, d_v)
-        self.W_v = self.fill_out_matrix(emb_size, d_v, 3)
-
+        self.W_v = self.fill_out_matrix(emb_size, d_v, 4)
         self.emb_size = emb_size
         self.d_k = d_k
         self.d_v = d_v
@@ -67,9 +68,9 @@ class SelfAttentionModel:
         self.mat_K = K
         self.mat_V = V
 
-        print(f"{Q=} {Q.shape=}")
-        print(f"{K=} {K.shape=}")
-        print(f"{V=} {V.shape=}")
+        print(f"{Q=} {Q.shape=} {self.W_q=}")
+        print(f"{K=} {K.shape=} {self.W_k}")
+        print(f"{V=} {V.shape=} {self.W_v=}")
 
         # score represents to some extent some sort of correlation matrix.
         # The higher the entry, the higher the correlation between token_i and token_j
