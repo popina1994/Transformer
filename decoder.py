@@ -3,7 +3,6 @@ import torch.nn as nn
 from dataclasses import dataclass
 from encoder import add_and_normalize
 from encoder import MultiHeadSelfAttention
-from typing import override
 
 @dataclass
 class MultiHeadMaskedSelfAttention(MultiHeadSelfAttention):
@@ -12,18 +11,20 @@ class MultiHeadMaskedSelfAttention(MultiHeadSelfAttention):
         super().__init__(emb_size=emb_size,
                           num_heads=num_heads)
 
-    #TODO: add forward pass with the masking logic.
+    def forward_pass(self, X_in: torch.Tensor,
+                     encoder_output: torch.Tensor | None = None) -> torch.Tensor:
+        return super().forward_pass(X_in, encoder_output=encoder_output,
+                             mask_future_tokens=True)
 
 @dataclass
 class EncoderDecoderMultiHeadSelfAttention(MultiHeadSelfAttention):
     def __init__(self, emb_size: int, num_heads: int):
         super().__init__(emb_size=emb_size, num_heads=num_heads)
 
-    @override
     def forward_pass(self, X_in: torch.Tensor,
                      encoder_output: torch.Tensor) -> torch.Tensor:
-        return super().forward_pass(X_in, encoder_output=encoder_output)
-
+        return super().forward_pass(X_in, encoder_output=encoder_output,
+                                     mask_future_tokens=False)
 
 
 @dataclass
@@ -45,7 +46,6 @@ class Decoder:
 
     def forward_pass(self, X_in: torch.Tensor,
                     encoder_output: torch.Tensor):
-        #TODO: masked self attention
         print(f"X_input: {X_in=}")
         multi_head_out = self.multi_head_self_attention.forward_pass(X_in=X_in)
         # (X_in.num_rows, emb_size)

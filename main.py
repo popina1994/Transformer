@@ -5,8 +5,11 @@ from transformer import Transformer
 if __name__ == "__main__":
     # A 2×4 matrix
     X_out = torch.tensor([[4, 5, 6, 7],
-                  [1, 2, 3, 4],
-                  [1, 2, 3, 4]], dtype=torch.float64)
+                  [1, 1, 1, 1],
+                  [1, 1, 1, 1],
+                  [1, 1, 1, 1],
+                  [1, 1, 1, 1],
+                  [1, 1, 1, 1],], dtype=torch.float64)
     num_heads = 2
     emb_size = 4
     text = "Transformers are revolutionizing AI research."

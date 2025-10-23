@@ -26,23 +26,26 @@ class Transformer:
         self.encoder = Encoder(emb_size=emb_size, num_heads=num_heads)
         self.decoder = Decoder(emb_size=emb_size, num_heads=num_heads)
         self.tokenizer = AutoTokenizer.from_pretrained(self.model_name)
-        self.decoder_out_linear_layer = torch.nn.Linear(emb_size, self.tokenizer.vocab_size, ).double()
+        self.decoder_out_linear_layer = torch.nn.Linear(in_features=emb_size, out_features=self.tokenizer.vocab_size, ).double()
         self.embedding_layer = torch.nn.Embedding(
             num_embeddings=self.tokenizer.vocab_size,
             embedding_dim=emb_size, dtype=torch.float64)
         # shape: [num_tokens, emb_size]
-        self.token_embeddings = self.convert_tokens_to_embedding(text)
-        self.positional_encodings = self.positional_encoding(self.token_embeddings.shape[0], False)
+        self.token_embeddings = self.convert_tokens_to_embedding(text=text, generate_positional_encodings=True)
         self.encoder_output = self.encoder.forward_pass(X_in=self.token_embeddings)
         print(f"{self.token_embeddings=}")
         print(f"{self.encoder_output=}")
 
 
-    def convert_tokens_to_embedding(self, text: str)-> torch.Tensor:
+    def convert_tokens_to_embedding(self, text: str, generate_positional_encodings: bool=False)-> torch.Tensor:
         tokens: list[str] = self.tokenizer.tokenize(text)
+        if generate_positional_encodings:
+            self.positional_encodings = self.positional_encoding(len(tokens), False)
         token_ids: list[int] = self.tokenizer.convert_tokens_to_ids(tokens)
         token_ids_torch: torch.Tensor = torch.tensor(token_ids, dtype=torch.long)
         token_embeddings = self.embedding_layer(token_ids_torch)
+        for idx_token in range(len(tokens)):
+            token_embeddings[idx_token] += self.positional_encodings[idx_token]
 
         return token_embeddings
 
@@ -79,7 +82,8 @@ class Transformer:
     def forward_pass(self, X_out: torch.Tensor)->Generator[str, None, None]:
         num_tokens = X_out.shape[0]
         for i in range(num_tokens - 1):
-            decoder_out = self.decoder.forward_pass(X_in=X_out[0:(i+2), :], encoder_output=self.encoder_output)
+            decoder_out = self.decoder.forward_pass(X_in=X_out[0:(i+2), :],
+                                                    encoder_output=self.encoder_output)
             print(f"{decoder_out=} {X_out=}")
 
             # Get the logits for the currently encoded sequence of words + the input query.

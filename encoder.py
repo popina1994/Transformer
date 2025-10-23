@@ -50,7 +50,8 @@ class SelfAttentionModel:
 
 
     def forward_pass(self, X_in: torch.Tensor,
-                     encoder_output: torch.Tensor | None = None) -> torch.Tensor:
+                     encoder_output: torch.Tensor | None = None,
+                     mask_future_tokens: bool = False) -> torch.Tensor:
         # Dimensions of X_in: (X_in.rows, emb_size)
         print(f"{X_in=}")
 
@@ -83,6 +84,10 @@ class SelfAttentionModel:
         d_k = emb_size // self.num_heads
         # Normalization to flatten the scores.
         score /= math.sqrt(d_k)
+        if mask_future_tokens:
+            mask = torch.tril(torch.ones(score.shape[0], score.shape[0], dtype=torch.int))
+            score = score.masked_fill(mask == 0, float('-inf'))
+            print(f"Score masked: {score=} {mask=}")
         # Softmax each row and get the activation.
         # row is 0th dimensions, column is 1st.
         # applying over the i-th dimensions, while keeping all other indices fixed.
@@ -119,8 +124,10 @@ class MultiHeadSelfAttention:
                                                         for _ in range(num_heads)]
 
     def forward_pass(self, X_in: torch.Tensor,
-                     encoder_output: torch.Tensor | None = None) -> torch.Tensor:
-        heads_out = [self_attention_model.forward_pass(X_in, encoder_output) for self_attention_model in self.self_attention_models]
+                     encoder_output: torch.Tensor | None = None,
+                     mask_future_tokens: bool = False) -> torch.Tensor:
+        heads_out = [self_attention_model.forward_pass(X_in, encoder_output,
+                                                        mask_future_tokens) for self_attention_model in self.self_attention_models]
 
         # X_in.num_rows, d_v * num_heads
         head = torch.concat(heads_out, dim=1)
