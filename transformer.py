@@ -10,31 +10,37 @@ from transformers import BertTokenizerFast, AutoTokenizer
 class Transformer:
     emb_size: int
     num_heads: int
-    vocab: list[str]
-
     encoder: Encoder
     decoder: Decoder
     tokenizer: BertTokenizerFast
     embedding_layer: torch.nn.Embedding
+    token_embeddings: torch.Tensor
+    positional_encodings: torch.Tensor
+    encoder_output: torch.Tensor
     model_name: str = "huawei-noah/TinyBERT_General_4L_312D"
-    def __init__(self, emb_size: int, num_heads: int, vocab: list[str]):
+    def __init__(self, emb_size: int, num_heads: int, text: str):
+        torch.manual_seed(42)
         self.num_heads = num_heads
         self.emb_size = emb_size
         self.encoder = Encoder(emb_size=emb_size, num_heads=num_heads)
         self.decoder = Decoder(emb_size=emb_size, num_heads=num_heads)
-        self.linear_layer = torch.nn.Linear(emb_size, len(vocab)).double()
-        self.vocab = vocab
         self.tokenizer = AutoTokenizer.from_pretrained(self.model_name)
+        self.decoder_out_linear_layer = torch.nn.Linear(emb_size, self.tokenizer.vocab_size, ).double()
         self.embedding_layer = torch.nn.Embedding(
             num_embeddings=self.tokenizer.vocab_size,
-            embedding_dim=emb_size)
+            embedding_dim=emb_size, dtype=torch.float64)
+        # shape: [num_tokens, emb_size]
+        self.token_embeddings = self.convert_tokens_to_embedding(text)
+        self.positional_encodings = self.positional_encoding(self.token_embeddings.shape[0], False)
+        self.encoder_output = self.encoder.forward_pass(X_in=self.token_embeddings)
+        print(f"{self.encoder_output=}")
 
 
     def convert_tokens_to_embedding(self, text: str)-> torch.Tensor:
         tokens: list[str] = self.tokenizer.tokenize(text)
-        token_ids:  list[int] = self.tokenizer.convert_tokens_to_ids(tokens)
+        token_ids: list[int] = self.tokenizer.convert_tokens_to_ids(tokens)
         token_ids_torch: torch.Tensor = torch.tensor(token_ids, dtype=torch.long)
-        token_embeddings = self.embedding_layer(token_ids_torch)  # shape: [seq_length, emb_size]
+        token_embeddings = self.embedding_layer(token_ids_torch)
 
         return token_embeddings
 
@@ -68,23 +74,26 @@ class Transformer:
         return pos_encoding
 
 
-    def forward_pass(self, X_in: torch.Tensor, X_out: torch.Tensor)->Generator[str, None, None]:
-        encoder_output = self.encoder.forward_pass(X_in=X_in)
-        print(f"{encoder_output=}")
+    def forward_pass(self, X_out: torch.Tensor)->Generator[str, None, None]:
         num_tokens = X_out.shape[0]
         for i in range(num_tokens - 1):
-            decoder_out = self.decoder.forward_pass(X_in=X_out[0:(i+2), :], encoder_output=encoder_output)
+            decoder_out = self.decoder.forward_pass(X_in=X_out[0:(i+2), :], encoder_output=self.encoder_output)
             print(f"{decoder_out=}")
 
             # Get the logits for the currently encoded sequence of words + the input query.
-            logits = self.linear_layer(decoder_out)[i+1]
+            logits = self.decoder_out_linear_layer(decoder_out)[i+1]
             # Check which of the words is to be the next one using probabilities with
             # softmax
             logits_prob = F.softmax(logits)
             print(f"{logits_prob=}")
-            max_idx_word = torch.argmax(logits_prob)
+            token_idx = torch.argmax(logits_prob)
             # get the word from the vocabulary
-            word = self.vocab[max_idx_word]
-            yield word
+            token_tensor = torch.tensor([token_idx], dtype=torch.float64)
+            list_token: list[str] = self.tokenizer.convert_ids_to_tokens(token_tensor)
+            token: str = list_token[0]
+            token_embedding = self.convert_tokens_to_embedding(token)
+            print(f"{X_out=} {token_embedding=}")
+            X_out[i+1, :] = token_embedding
+            print(f"{X_out=}")
+            yield token
             # encode word and position
-            #X_out[i+1, :] = map_word_to_tensor(word, i+1)
