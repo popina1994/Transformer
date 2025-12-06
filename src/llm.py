@@ -8,13 +8,16 @@ class LargeLanguageModel:
     tokenizer_model_name: str
     token_embedder: TokenEmbedder
     transformer_model: Transformer
+    use_kv_cache: bool = False
+    loaded: bool = False
 
 
-    def __init__(self, tokenizer_model_name: str, emb_size: int, num_heads: int):
+    def __init__(self, tokenizer_model_name: str, emb_size: int, num_heads: int, use_kv_cache: bool = False):
         self.tokenizer_model_name = tokenizer_model_name
         self.emb_size = emb_size
         self.num_heads = num_heads
         self.loaded = False
+        self.use_kv_cache = use_kv_cache
 
 
     def load_model(self):

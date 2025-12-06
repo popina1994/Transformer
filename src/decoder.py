@@ -6,13 +6,17 @@ from encoder import MultiHeadSelfAttention
 
 @dataclass
 class MultiHeadMaskedSelfAttention(MultiHeadSelfAttention):
+    use_kv_cache: bool = False
     def __init__(self, emb_size: int,  num_heads: int,
-                 pass_K_and_V: bool = False):
+                 use_kv_cache: bool = False):
         super().__init__(emb_size=emb_size,
-                          num_heads=num_heads)
+                          num_heads=num_heads,
+                          use_kv_cache=use_kv_cache)
+        self.use_kv_cache = use_kv_cache
 
     def forward_pass(self, X_in: torch.Tensor,
                      encoder_output: torch.Tensor | None = None) -> torch.Tensor:
+
         return super().forward_pass(X_in, encoder_output=encoder_output,
                              mask_future_tokens=True)
 
@@ -35,11 +39,11 @@ class Decoder:
     encoder_decoder_attention: EncoderDecoderMultiHeadSelfAttention
     linear_mode: nn.Linear
 
-    def __init__(self, emb_size: int, num_heads: int):
+    def __init__(self, emb_size: int, num_heads: int, use_kv_cache: bool = False):
         self.emb_size = emb_size
         self.num_heads = num_heads
         self.multi_head_self_attention = MultiHeadMaskedSelfAttention(emb_size=emb_size,
-                                        num_heads=num_heads)
+                                        num_heads=num_heads, use_kv_cache=use_kv_cache)
         self.encoder_decoder_attention = EncoderDecoderMultiHeadSelfAttention(emb_size=emb_size, num_heads=num_heads)
         self.linear_model = nn.Linear(emb_size, emb_size).double()
 

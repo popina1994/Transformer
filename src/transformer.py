@@ -14,14 +14,16 @@ class Transformer:
     encoder_output: torch.Tensor
     token_embedder: TokenEmbedder
     emb_size: int
+    use_kv_cache: bool = False
 
     def __init__(self, num_heads: int, emb_size: int, token_embeddings: torch.Tensor,
-                 token_embedder: TokenEmbedder=None):
+                 token_embedder: TokenEmbedder=None, use_kv_cache: bool = False):
         torch.manual_seed(seed=42)
         self.emb_size = emb_size
         num_heads = num_heads
+        self.use_kv_cache = use_kv_cache
         self.encoder = Encoder(emb_size=self.emb_size, num_heads=num_heads)
-        self.decoder = Decoder(emb_size=self.emb_size, num_heads=num_heads)
+        self.decoder = Decoder(emb_size=self.emb_size, num_heads=num_heads, use_kv_cache=use_kv_cache)
         self.token_embeddings = token_embeddings
         self.token_embedder = token_embedder
         self.decoder_out_linear_layer = torch.nn.Linear(in_features=emb_size, out_features=self.token_embedder.vocab_size, ).double()

@@ -13,6 +13,7 @@ def add_and_normalize(X_in: torch.Tensor, X_out: torch.Tensor) -> torch.Tensor:
 
     return norm_add_X
 
+
 @dataclass
 class SelfAttentionModel:
     W_q: torch.Tensor
@@ -22,21 +23,17 @@ class SelfAttentionModel:
     d_k: int = 1
     d_v: int = 1
     num_heads: int = 1
+    use_kv_cache: bool = False
+    K_cached: torch.Tensor | None = None
+    V_cached: torch.Tensor | None = None
 
     @staticmethod
     def fill_out_matrix(num_rows: int, num_cols: int, shift: int) -> torch.Tensor:
         torch.manual_seed(shift)
         return torch.rand(num_rows, num_cols, dtype=torch.float64)
-        # A = torch.tensor([[0] * num_cols] * num_rows, dtype=torch.float64)
-        # for idx in range(num_rows * num_cols):
-        #     row_idx: int = idx // num_cols
-        #     col_idx: int = idx % num_cols
-        #     A[row_idx, col_idx] = idx + shift
-
-        # return A
 
 
-    def __init__(self, emb_size: int, d_k: int, d_v: int, num_heads: int) -> None:
+    def __init__(self, emb_size: int, d_k: int, d_v: int, num_heads: int, use_kv_cache: bool = False) -> None:
         # (emb_size, d_k)
         self.W_q = self.fill_out_matrix(emb_size, d_k, 1)
 
@@ -48,6 +45,9 @@ class SelfAttentionModel:
         self.d_k = d_k
         self.d_v = d_v
         self.num_heads = num_heads
+        self.use_kv_cache = use_kv_cache
+        self.K_cached = torch.Tensor((0, d_k)) if use_kv_cache else None
+        self.V_cached = torch.Tensor((0, d_v)) if use_kv_cache else None
 
 
     def forward_pass(self, X_in: torch.Tensor,
@@ -63,10 +63,13 @@ class SelfAttentionModel:
 
         X_kin = X_in if encoder_output is None else encoder_output
         X_vin = X_in if encoder_output is None else encoder_output
+        X_kin = X_kin[-1:,:] if self.use_kv_cache else X_kin
         K: torch.Tensor = X_kin @ self.W_k  #(X_in.rows, d_k)
         V: torch.Tensor = X_vin @ self.W_v  #(X_in.rows, d_v)
-        self.mat_K = K
-        self.mat_V = V
+        K = K if not self.use_kv_cache else torch.concat([self.K_cached, K], dim=0)
+        V = V if not self.use_kv_cache else torch.concat([self.V_cached, V], dim=0)
+        self.K_cached = K
+        self.V_cached = V
 
         print(f"{Q=} {Q.shape=} {self.W_q=}")
         print(f"{K=} {K.shape=} {self.W_k}")
@@ -102,6 +105,7 @@ class SelfAttentionModel:
         # in the sentence.
         return Z
 
+
 @dataclass
 class MultiHeadSelfAttention:
     emb_size: int
@@ -112,8 +116,9 @@ class MultiHeadSelfAttention:
     self_attention_models: list[SelfAttentionModel]
     mat_K: list[torch.Tensor]
     mat_V: list[torch.Tensor]
+    use_kv_cache: bool = False
 
-    def __init__(self, emb_size: int, num_heads: int):
+    def __init__(self, emb_size: int, num_heads: int, use_kv_cache: bool = False):
         self.emb_size = emb_size
         self.d_k = emb_size // num_heads
         self.d_v = emb_size // num_heads
@@ -121,8 +126,11 @@ class MultiHeadSelfAttention:
         self.self_attention_models = [SelfAttentionModel(emb_size=emb_size,
                                                         d_k=self.d_k,
                                                         d_v=self.d_v,
-                                                        num_heads=num_heads)
+                                                        num_heads=num_heads,
+                                                        use_kv_cache=use_kv_cache)
                                                         for _ in range(num_heads)]
+        self.use_kv_cache = use_kv_cache
+
 
     def forward_pass(self, X_in: torch.Tensor,
                      encoder_output: torch.Tensor | None = None,
@@ -145,6 +153,7 @@ class MultiHeadSelfAttention:
         print(f"{multi_head_out=} {X_in=}")
 
         return multi_head_out
+
 
 @dataclass
 class Encoder:
